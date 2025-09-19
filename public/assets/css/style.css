@@ -1030,7 +1030,7 @@ select.form-control:not([size]):not([multiple]) {
 .card.card-statistic-1 .card-header h4,
 .card.card-statistic-2 .card-header h4 {
     line-height: 1.2;
-    color: #98a6ad;
+    color: #000000;
 }
 .card.card-statistic-1 .card-body,
 .card.card-statistic-2 .card-body {

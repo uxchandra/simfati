@@ -4,7 +4,7 @@
     <div class="section-header">
         <h1>Edit Indikator Checksheet</h1>
         <div class="ml-auto">
-            <a href="{{ route('checkitem.index') }}" class="btn btn-secondary">
+            <a href="{{ route('checkitem.index') }}" class="btn btn-dark">
                 <i class="fas fa-arrow-left"></i> Kembali
             </a>
         </div>

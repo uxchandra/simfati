@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Department;
 
 
 class UserController extends Controller
@@ -17,9 +18,10 @@ class UserController extends Controller
      */
     public function index()
     {
-        // Pass roles data ke view untuk dropdown
+        // Pass roles dan departments data ke view untuk dropdown
         $roles = Role::all();
-        return view('user.index', compact('roles'));
+        $departments = Department::all();
+        return view('user.index', compact('roles', 'departments'));
     }
 
     /**
@@ -27,7 +29,7 @@ class UserController extends Controller
      */
     public function getData()
     {
-        $users = User::with('role')->get(); // Pastikan relationship sudah ada
+        $users = User::with(['role', 'department'])->get(); // Include department relationship
         
         return response()->json([
             'data' => $users
@@ -40,7 +42,8 @@ class UserController extends Controller
     public function create()
     {
         $roles = Role::all();
-        return view('user.create', compact('roles'));
+        $departments = Department::all();
+        return view('user.create', compact('roles', 'departments'));
     }
 
     /**
@@ -53,6 +56,7 @@ class UserController extends Controller
             'username' => 'required|string|max:255|unique:users,username',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'role_id' => 'required|exists:roles,id',
+            'department_id' => 'required|exists:departments,id',
         ]);
 
         $user = User::create([
@@ -60,13 +64,14 @@ class UserController extends Controller
             'username' => $validated['username'],
             'password' => Hash::make($validated['password']),
             'role_id' => $validated['role_id'],
+            'department_id' => $validated['department_id'],
         ]);
 
         // Check if request is AJAX
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'User berhasil ditambahkan',
-                'data' => $user->load('role')
+                'data' => $user->load(['role', 'department'])
             ], 201);
         }
 
@@ -78,7 +83,7 @@ class UserController extends Controller
      */
     public function show($id)
     {
-        $user = User::with('role')->findOrFail($id);
+        $user = User::with(['role', 'department'])->findOrFail($id);
         return view('user.show', compact('user'));
     }
 
@@ -87,18 +92,20 @@ class UserController extends Controller
      */
     public function edit($id)
     {
-        $user = User::with('role')->findOrFail($id);
+        $user = User::with(['role', 'department'])->findOrFail($id);
 
         // Check if request is AJAX
         if (request()->expectsJson()) {
             return response()->json([
                 'data' => $user,
-                'roles' => Role::all()
+                'roles' => Role::all(),
+                'departments' => Department::all()
             ]);
         }
 
         $roles = Role::all();
-        return view('user.edit', compact('user', 'roles'));
+        $departments = Department::all();
+        return view('user.edit', compact('user', 'roles', 'departments'));
     }
 
     /**
@@ -112,6 +119,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'username' => 'required|string|max:255|unique:users,username,' . $id,
             'role_id' => 'required|exists:roles,id',
+            'department_id' => 'required|exists:departments,id',
         ];
 
         // Only validate password if it's provided
@@ -125,6 +133,7 @@ class UserController extends Controller
             'name' => $validated['name'],
             'username' => $validated['username'],
             'role_id' => $validated['role_id'],
+            'department_id' => $validated['department_id'],
         ];
 
         // Only update password if it's provided
@@ -138,7 +147,7 @@ class UserController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'message' => 'User berhasil diupdate',
-                'data' => $user->load('role')
+                'data' => $user->load(['role', 'department'])
             ]);
         }
 

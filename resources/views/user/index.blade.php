@@ -1,6 +1,5 @@
 @extends('layouts.app')
 
-{{-- Pass variabel $roles ke file yang di-include --}}
 @include('user.create')
 @include('user.edit')
 
@@ -25,7 +24,7 @@
                                     <th>Name</th>
                                     <th>Username</th>
                                     <th>Role</th>
-                                    <th>Created At</th>
+                                    <th>Department</th>
                                     <th>Opsi</th>
                                 </tr>
                             </thead>
@@ -64,7 +63,7 @@
                                 <td>${value.name}</td>
                                 <td>${value.username}</td>
                                 <td><span class="badge badge-primary">${value.role ? value.role.role : '-'}</span></td>
-                                <td>${createdAt}</td>
+                                <td><span class="badge badge-success">${value.department ? value.department.kode : '-'}</span></td>
                                 <td>
                                     <div class="d-flex">
                                         <a href="javascript:void(0)" id="button_edit_user" data-id="${value.id}" class="btn btn-icon btn-warning btn-lg mr-2"><i class="far fa-edit"></i></a>
@@ -94,6 +93,7 @@
             let password = $('#password').val();
             let password_confirmation = $('#password_confirmation').val();
             let role_id = $('#role_id').val();
+            let department_id = $('#department_id').val();
             let token = $("meta[name='csrf-token']").attr("content");
 
             let formData = new FormData();
@@ -102,6 +102,7 @@
             formData.append('password', password);
             formData.append('password_confirmation', password_confirmation);
             formData.append('role_id', role_id);
+            formData.append('department_id', department_id);
             formData.append('_token', token);
 
             $.ajax({
@@ -129,6 +130,7 @@
                     $('#password').val('');
                     $('#password_confirmation').val('');
                     $('#role_id').val('');
+                    $('#department_id').val('');
                     $('#modal_tambah_user').modal('hide');
                 },
 
@@ -164,6 +166,7 @@
                     $('#edit_name').val(response.data.name);
                     $('#edit_username').val(response.data.username);
                     $('#edit_role_id').val(response.data.role_id);
+                    $('#edit_department_id').val(response.data.department_id);
 
                     $('#modal_edit_user').modal('show');
                 }
@@ -180,6 +183,7 @@
             let password = $('#edit_password').val();
             let password_confirmation = $('#edit_password_confirmation').val();
             let role_id = $('#edit_role_id').val();
+            let department_id = $('#edit_department_id').val();
             let token = $("meta[name='csrf-token']").attr('content');
 
             let formData = new FormData();
@@ -190,6 +194,7 @@
                 formData.append('password_confirmation', password_confirmation);
             }
             formData.append('role_id', role_id);
+            formData.append('department_id', department_id);
             formData.append('_token', token);
             formData.append('_method', 'PUT');
 

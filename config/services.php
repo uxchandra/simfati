@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'warehouse' => [
+        'base_url' => env('WAREHOUSE_API_URL', 'http://localhost:8001'), // Sesuaikan dengan URL warehouse
+        'timeout' => 30,
+    ],
+
 ];

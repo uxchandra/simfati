@@ -37,7 +37,18 @@
                             </div>
                         </div>
                         
-                        <div class="col-md-6">
+                        <div class="col-md-6">                           
+                            <div class="form-group">
+                                <label>Department <span class="text-danger">*</span></label>
+                                <select class="form-control" id="department_id" style="width: 100%">
+                                    <option value="">Pilih Department</option>
+                                    @foreach ($departments as $department)
+                                        <option value="{{ $department->id }}">{{ $department->kode }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="alert alert-danger mt-2 d-none" role="alert" id="alert-department_id"></div>
+                            </div>
+
                             <div class="form-group">
                                 <label>Password <span class="text-danger">*</span></label>
                                 <input type="password" class="form-control" id="password" placeholder="Masukkan Password">

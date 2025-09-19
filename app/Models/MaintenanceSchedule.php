@@ -16,6 +16,7 @@ class MaintenanceSchedule extends Model
         'schedule_name',
         'period_days',
         'start_date',
+        'user_id',
     ];
 
     protected $casts = [
@@ -36,6 +37,22 @@ class MaintenanceSchedule extends Model
     public function part()
     {
         return $this->belongsTo(Part::class);
+    }
+
+    /**
+     * Relasi ke User (PIC)
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get PIC name
+     */
+    public function getPicNameAttribute()
+    {
+        return $this->user ? $this->user->name : '-';
     }
 
     /**
@@ -158,11 +175,23 @@ class MaintenanceSchedule extends Model
     }
 
     /**
+     * Scope untuk filter berdasarkan PIC
+     */
+    public function scopeByPic($query, $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    /**
      * Get all schedules with calculated data
      */
     public static function getScheduleData()
     {
-        return self::with(['machine:id,machine_code,machine_name', 'part:id,part_code,part_name'])
+        return self::with([
+                'machine:id,machine_code,machine_name', 
+                'part:id,part_code,part_name',
+                'user:id,name'
+            ])
             ->get()
             ->map(function($schedule) {
                 return [
@@ -177,7 +206,9 @@ class MaintenanceSchedule extends Model
                     'next_check' => $schedule->next_check_date->format('d/m/Y'),
                     'days_remaining' => $schedule->days_remaining,
                     'status' => $schedule->status,
-                    'status_label' => $schedule->status_label
+                    'status_label' => $schedule->status_label,
+                    'pic_name' => $schedule->pic_name,
+                    'user_id' => $schedule->user_id
                 ];
             });
     }

@@ -10,14 +10,14 @@ use App\Http\Controllers\CheckItemController;
 use App\Http\Controllers\GeneralCheckupController;
 use App\Http\Controllers\MaintenanceScheduleController;
 use App\Http\Controllers\RepairRequestController;
+use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\SparepartController;
 
 Route::get('/', function () {
     return view('auth.login');
 });
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [App\Http\Controllers\DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -35,6 +35,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/machine/get-data', [MachineController::class, 'getData'])->name('machine.getData');
     Route::resource('machine', MachineController::class);
+
+    Route::get('/department/get-data', [DepartmentController::class, 'getDataDepartment']);
+    Route::get('/get-departments', [DepartmentController::class, 'getDepartments']);
+    Route::resource('/department', DepartmentController::class);
 
     // Route untuk CheckItem
     Route::resource('checkitem', CheckItemController::class)->except(['show']);
@@ -54,13 +58,20 @@ Route::middleware('auth')->group(function () {
     // Route untuk Maintenance Schedule
     Route::get('/maintenance-schedule/get-data', [MaintenanceScheduleController::class, 'getData'])->name('maintenance-schedule.getData');
     Route::get('/maintenance-schedule/get-options', [MaintenanceScheduleController::class, 'getOptions'])->name('maintenance-schedule.getOptions');
+    Route::get('/maintenance-schedule/get-users', [MaintenanceScheduleController::class, 'getUsers'])->name('maintenance-schedule.getUsers');
     Route::resource('maintenance-schedule', MaintenanceScheduleController::class);
 
     // Route untuk Repair Request
     Route::get('/repair-request/get-data', [RepairRequestController::class, 'getData'])->name('repair-request.getData');
     Route::get('/repair-request/detail/{id}', [RepairRequestController::class, 'getDetail'])->name('repair-request.getDetail');
     Route::get('/repair-request/get-options', [RepairRequestController::class, 'getOptions'])->name('repair-request.getOptions');
+
     Route::resource('repair-request', RepairRequestController::class);
+
+    Route::get('/sparepart', [SparepartController::class, 'index'])->name('sparepart.index');
+    Route::get('/sparepart/data', [SparepartController::class, 'getData'])->name('sparepart.data');
+    Route::get('/sparepart/search', [SparepartController::class, 'search'])->name('sparepart.search');
+    Route::post('/sparepart/clear-cache', [SparepartController::class, 'clearCache'])->name('sparepart.clear-cache');
 });
 
 require __DIR__.'/auth.php';

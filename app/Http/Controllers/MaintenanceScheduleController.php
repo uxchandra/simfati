@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\MaintenanceSchedule;
 use App\Models\Machine;
 use App\Models\Part;
+use App\Models\User;
 
 class MaintenanceScheduleController extends Controller
 {
@@ -31,6 +32,13 @@ class MaintenanceScheduleController extends Controller
             });
         }
 
+        // Filter berdasarkan PIC jika ada
+        if ($request->has('pic_id') && $request->pic_id != 'all') {
+            $schedules = $schedules->filter(function($schedule) use ($request) {
+                return $schedule['user_id'] == $request->pic_id;
+            });
+        }
+
         // Sort berdasarkan days_remaining (overdue dulu, lalu yang paling dekat due date)
         $schedules = $schedules->sortBy(function($schedule) {
             return $schedule['days_remaining'];
@@ -48,8 +56,9 @@ class MaintenanceScheduleController extends Controller
     {
         $machines = Machine::select('id', 'machine_code', 'machine_name')->get();
         $parts = Part::select('id', 'part_code', 'part_name')->get();
+        $users = User::select('id', 'name')->orderBy('name')->get();
         
-        return view('maintenance-schedule.create', compact('machines', 'parts'));
+        return view('maintenance-schedule.create', compact('machines', 'parts', 'users'));
     }
 
     /**
@@ -60,6 +69,7 @@ class MaintenanceScheduleController extends Controller
         $request->validate([
             'type' => 'required|in:machine,part',
             'item_id' => 'required|integer',
+            'user_id' => 'required|exists:users,id',
             'period_days' => 'required|integer|min:1',
             'start_date' => 'required|date',
         ]);
@@ -77,23 +87,34 @@ class MaintenanceScheduleController extends Controller
             
             $scheduleName = "Schedule {$itemName} ({$request->period_days} hari)";
 
-            MaintenanceSchedule::create([
+            $schedule = MaintenanceSchedule::create([
                 $request->type . '_id' => $request->item_id,
                 'schedule_name' => $scheduleName,
                 'period_days' => $request->period_days,
                 'start_date' => $request->start_date,
+                'user_id' => $request->user_id,
             ]);
 
-            return response()->json([
-                'message' => 'Schedule berhasil dibuat!',
-                'success' => true
-            ]);
+            // Check if request is AJAX
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Schedule berhasil dibuat!',
+                    'success' => true,
+                    'data' => $schedule
+                ], 201);
+            }
+
+            return redirect()->route('maintenance-schedule.index')->with('success', 'Schedule berhasil dibuat!');
 
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Gagal menyimpan data: ' . $e->getMessage(),
-                'success' => false
-            ], 500);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Gagal menyimpan data: ' . $e->getMessage(),
+                    'success' => false
+                ], 500);
+            }
+
+            return redirect()->back()->with('error', 'Gagal menyimpan data: ' . $e->getMessage())->withInput();
         }
     }
 
@@ -102,7 +123,7 @@ class MaintenanceScheduleController extends Controller
      */
     public function show($id)
     {
-        $schedule = MaintenanceSchedule::with(['machine', 'part'])->findOrFail($id);
+        $schedule = MaintenanceSchedule::with(['machine', 'part', 'user'])->findOrFail($id);
         return view('maintenance-schedule.show', compact('schedule'));
     }
 
@@ -111,11 +132,27 @@ class MaintenanceScheduleController extends Controller
      */
     public function edit($id)
     {
-        $schedule = MaintenanceSchedule::findOrFail($id);
+        $schedule = MaintenanceSchedule::with(['machine', 'part', 'user'])->findOrFail($id);
+        
+        // Check if request is AJAX
+        if (request()->expectsJson()) {
+            $type = $schedule->machine_id ? 'machine' : 'part';
+            $item_id = $schedule->machine_id ?? $schedule->part_id;
+            
+            return response()->json([
+                'type' => $type,
+                'item_id' => $item_id,
+                'period_days' => $schedule->period_days,
+                'start_date' => $schedule->start_date,
+                'user_id' => $schedule->user_id
+            ]);
+        }
+
         $machines = Machine::select('id', 'machine_code', 'machine_name')->get();
         $parts = Part::select('id', 'part_code', 'part_name')->get();
+        $users = User::select('id', 'name')->orderBy('name')->get();
         
-        return view('maintenance-schedule.edit', compact('schedule', 'machines', 'parts'));
+        return view('maintenance-schedule.edit', compact('schedule', 'machines', 'parts', 'users'));
     }
 
     /**
@@ -126,6 +163,7 @@ class MaintenanceScheduleController extends Controller
         $request->validate([
             'type' => 'required|in:machine,part',
             'item_id' => 'required|integer',
+            'user_id' => 'required|exists:users,id',
             'period_days' => 'required|integer|min:1',
             'start_date' => 'required|date',
         ]);
@@ -151,18 +189,29 @@ class MaintenanceScheduleController extends Controller
                 'schedule_name' => $scheduleName,
                 'period_days' => $request->period_days,
                 'start_date' => $request->start_date,
+                'user_id' => $request->user_id,
             ]);
 
-            return response()->json([
-                'message' => 'Schedule berhasil diupdate!',
-                'success' => true
-            ]);
+            // Check if request is AJAX
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Schedule berhasil diupdate!',
+                    'success' => true,
+                    'data' => $schedule
+                ]);
+            }
+
+            return redirect()->route('maintenance-schedule.index')->with('success', 'Schedule berhasil diupdate!');
 
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Gagal mengupdate data: ' . $e->getMessage(),
-                'success' => false
-            ], 500);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Gagal mengupdate data: ' . $e->getMessage(),
+                    'success' => false
+                ], 500);
+            }
+
+            return redirect()->back()->with('error', 'Gagal mengupdate data: ' . $e->getMessage())->withInput();
         }
     }
 
@@ -175,16 +224,25 @@ class MaintenanceScheduleController extends Controller
             $schedule = MaintenanceSchedule::findOrFail($id);
             $schedule->delete();
 
-            return response()->json([
-                'message' => 'Schedule berhasil dihapus!',
-                'success' => true
-            ]);
+            // Check if request is AJAX
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'message' => 'Schedule berhasil dihapus!',
+                    'success' => true
+                ]);
+            }
+
+            return redirect()->route('maintenance-schedule.index')->with('success', 'Schedule berhasil dihapus!');
 
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Gagal menghapus data: ' . $e->getMessage(),
-                'success' => false
-            ], 500);
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'message' => 'Gagal menghapus data: ' . $e->getMessage(),
+                    'success' => false
+                ], 500);
+            }
+
+            return redirect()->back()->with('error', 'Gagal menghapus data: ' . $e->getMessage());
         }
     }
 
@@ -205,6 +263,18 @@ class MaintenanceScheduleController extends Controller
 
         return response()->json([
             'data' => $options
+        ]);
+    }
+
+    /**
+     * Get users untuk dropdown PIC
+     */
+    public function getUsers()
+    {
+        $users = User::select('id', 'name')->orderBy('name')->get();
+        
+        return response()->json([
+            'data' => $users
         ]);
     }
 }
