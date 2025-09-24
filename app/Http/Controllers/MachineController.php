@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Machine;
+use App\Models\MachineCategory;
 
 class MachineController extends Controller
 {
@@ -29,6 +30,35 @@ class MachineController extends Controller
     }
 
     /**
+     * Show machines by category (view)
+     */
+    public function byCategory($id)
+    {
+        $category = MachineCategory::findOrFail($id);
+        return view('machine.index', compact('category'));
+    }
+
+    /**
+     * Full page create form within a category
+     */
+    public function createInCategory($id)
+    {
+        $category = MachineCategory::findOrFail($id);
+        return view('machine.create', compact('category'));
+    }
+
+    /**
+     * Get machines by category (AJAX JSON)
+     */
+    public function getByCategory($id)
+    {
+        $machines = Machine::where('category_id', $id)->get();
+        return response()->json([
+            'data' => $machines
+        ]);
+    }
+
+    /**
      * Show the form for creating a new resource.
      */
     public function create()
@@ -42,10 +72,30 @@ class MachineController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'machine_code' => 'required|string|max:255|unique:machines,machine_code',
-            'machine_name' => 'required|string|max:255',
-            'section' => 'required|string|max:255',
-            'status' => 'required|in:active,inactive,maintenance',
+            'category_id' => 'required|exists:machine_categories,id',
+            'kode' => 'required|string|max:50|unique:machines,kode',
+            'description' => 'nullable|string',
+            'kapasitas' => 'nullable|string|max:100',
+            'model' => 'nullable|string|max:100',
+            'tahun_pembuatan' => 'nullable|string|max:10',
+            'nomor_seri' => 'nullable|string|max:100',
+            'power' => 'nullable|string|max:100',
+            'tgl_instal' => 'nullable|string|max:100',
+            'keterangan' => 'nullable|string',
+            'capacity_kn' => 'nullable|string|max:100',
+            'slide_stroke' => 'nullable|string|max:100',
+            'stroke_per_minute' => 'nullable|string|max:100',
+            'die_height' => 'nullable|string|max:100',
+            'slide_adjustment' => 'nullable|string|max:100',
+            'slide_area' => 'nullable|string|max:100',
+            'bolster_area' => 'nullable|string|max:100',
+            'main_motor' => 'nullable|string|max:100',
+            'req_air_pressure' => 'nullable|string|max:100',
+            'max_upper_die_weight' => 'nullable|string|max:100',
+            'power_source' => 'nullable|string|max:100',
+            'braking_time' => 'nullable|string|max:100',
+            'lane' => 'nullable|string|max:100',
+            'status' => 'required|in:active,inactive',
         ]);
 
         $machine = Machine::create($validated);
@@ -97,10 +147,30 @@ class MachineController extends Controller
         $machine = Machine::findOrFail($id);
 
         $validated = $request->validate([
-            'machine_code' => 'required|string|max:255|unique:machines,machine_code,' . $id,
-            'machine_name' => 'required|string|max:255',
-            'section' => 'required|string|max:255',
-            'status' => 'required|in:active,inactive,maintenance',
+            'category_id' => 'required|exists:machine_categories,id',
+            'kode' => 'required|string|max:50|unique:machines,kode,' . $id,
+            'description' => 'nullable|string',
+            'kapasitas' => 'nullable|string|max:100',
+            'model' => 'nullable|string|max:100',
+            'tahun_pembuatan' => 'nullable|string|max:10',
+            'nomor_seri' => 'nullable|string|max:100',
+            'power' => 'nullable|string|max:100',
+            'tgl_instal' => 'nullable|string|max:100',
+            'keterangan' => 'nullable|string',
+            'capacity_kn' => 'nullable|string|max:100',
+            'slide_stroke' => 'nullable|string|max:100',
+            'stroke_per_minute' => 'nullable|string|max:100',
+            'die_height' => 'nullable|string|max:100',
+            'slide_adjustment' => 'nullable|string|max:100',
+            'slide_area' => 'nullable|string|max:100',
+            'bolster_area' => 'nullable|string|max:100',
+            'main_motor' => 'nullable|string|max:100',
+            'req_air_pressure' => 'nullable|string|max:100',
+            'max_upper_die_weight' => 'nullable|string|max:100',
+            'power_source' => 'nullable|string|max:100',
+            'braking_time' => 'nullable|string|max:100',
+            'lane' => 'nullable|string|max:100',
+            'status' => 'required|in:active,inactive',
         ]);
 
         $machine->update($validated);

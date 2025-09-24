@@ -6,68 +6,116 @@ use Illuminate\Http\Request;
 use App\Models\GeneralCheckup;
 use App\Models\Machine;
 use App\Models\Part;
+use App\Models\MaintenanceSchedule;
 use Illuminate\Support\Facades\DB;    
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class GeneralCheckupController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    public function __construct()
+    {
+        Carbon::setLocale('id');
+        date_default_timezone_set('Asia/Jakarta');
+    }
+
+    private function getCurrentShift()
+    {
+        $hour = Carbon::now()->hour;
+        
+        if ($hour >= 6 && $hour < 14) {
+            return 'morning';
+        } elseif ($hour >= 14 && $hour < 22) {
+            return 'afternoon';
+        } else {
+            return 'night';
+        }
+    }
+
     public function index()
     {
         return view('general-checkup.index');
     }
 
-    /**
-     * Get data for DataTables
-     */
     public function getData(Request $request)
     {
-        $query = GeneralCheckup::with(['machine:id,machine_code,machine_name', 'part:id,part_code,part_name', 'inspector:id,name'])
-            ->select('id', 'checkup_code', 'machine_id', 'part_id', 'checkup_date', 'user_id', 'shift', 'overall_status', 'notes');
-
-        // Filter berdasarkan tanggal jika ada
-        if ($request->has('start_date') && $request->has('end_date') && $request->start_date && $request->end_date) {
-            $query->whereBetween('checkup_date', [$request->start_date, $request->end_date]);
-        }
-
-        // Filter berdasarkan status jika ada
-        if ($request->has('status') && $request->status != 'all') {
-            $query->where('overall_status', $request->status);
-        }
-
-        // Filter berdasarkan shift jika ada
-        if ($request->has('shift') && $request->shift != 'all') {
-            $query->where('shift', $request->shift);
-        }
-
-        $checkups = $query->orderBy('checkup_date', 'desc')->get();
-
-        $data = $checkups->map(function($checkup) {
-            return [
-                'id' => $checkup->id,
-                'checkup_code' => $checkup->checkup_code,
-                'item_type' => $checkup->machine_id ? 'machine' : 'part',
-                'item_code' => $checkup->machine_id ? $checkup->machine->machine_code : $checkup->part->part_code,
-                'item_name' => $checkup->machine_id ? $checkup->machine->machine_name : $checkup->part->part_name,
-                'checkup_date' => $checkup->checkup_date->format('d/m/Y H:i'),
-                'inspector' => $checkup->inspector->name,
-                'shift' => ucfirst($checkup->shift),
-                'overall_status' => $checkup->overall_status,
-                'notes' => $checkup->notes ? (strlen($checkup->notes) > 50 ? substr($checkup->notes, 0, 50) . '...' : $checkup->notes) : '-'
-            ];
+        $today = Carbon::today();
+        
+        $scheduledItems = MaintenanceSchedule::get();
+        
+        $scheduledItems = $scheduledItems->filter(function($schedule) use ($today) {
+            $startDate = Carbon::parse($schedule->start_date)->startOfDay();
+            $daysSinceStart = $today->diffInDays($startDate);
+            
+            return $daysSinceStart === 0 || ($daysSinceStart > 0 && $daysSinceStart % $schedule->period_days === 0);
         });
+
+        if ($scheduledItems->isEmpty()) {
+            return response()->json(['data' => []]);
+        }
+
+        $existingCheckups = GeneralCheckup::whereDate('checkup_date', $today)
+            ->whereNull('completed_at')
+            ->get();
+
+        $data = collect();
+
+        foreach ($scheduledItems as $schedule) {
+            if ($schedule->machine_id) {
+                if ($existingCheckups->where('machine_id', $schedule->machine_id)->isNotEmpty()) {
+                    continue;
+                }
+
+                $machine = Machine::find($schedule->machine_id);
+                if ($machine) {
+                    $data->push([
+                        'id' => null,
+                        'checkup_code' => '(Pending)',
+                        'item_type' => 'machine',
+                        'item_id' => $machine->id,
+                        'item_code' => $machine->machine_code,
+                        'item_name' => $machine->machine_name,
+                        'schedule_id' => $schedule->id,
+                        'checkup_date' => $today->format('d/m/Y'),
+                        'inspector' => Auth::user()->name ?? 'Unassigned',
+                        'shift' => $this->getCurrentShift(),
+                        'overall_status' => 'pending',
+                        'notes' => 'Scheduled maintenance'
+                    ]);
+                }
+            }
+
+            if ($schedule->part_id) {
+                if ($existingCheckups->where('part_id', $schedule->part_id)->isNotEmpty()) {
+                    continue;
+                }
+
+                $part = Part::find($schedule->part_id);
+                if ($part) {
+                    $data->push([
+                        'id' => null,
+                        'checkup_code' => '(Pending)',
+                        'item_type' => 'part',
+                        'item_id' => $part->id,
+                        'item_code' => $part->part_code,
+                        'item_name' => $part->part_name,
+                        'schedule_id' => $schedule->id,
+                        'checkup_date' => $today->format('d/m/Y'),
+                        'inspector' => Auth::user()->name ?? 'Unassigned',
+                        'shift' => $this->getCurrentShift(),
+                        'overall_status' => 'pending',
+                        'notes' => 'Scheduled maintenance'
+                    ]);
+                }
+            }
+        }
 
         return response()->json([
             'data' => $data
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         $machines = Machine::select('id', 'machine_code', 'machine_name')->get();
@@ -76,9 +124,6 @@ class GeneralCheckupController extends Controller
         return view('general-checkup.create', compact('machines', 'parts'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -101,42 +146,38 @@ class GeneralCheckupController extends Controller
         try {
             DB::beginTransaction();
 
-            // Generate checkup code
             $checkupCode = GeneralCheckup::generateCheckupCode();
 
-            // Create general checkup
             $generalCheckup = GeneralCheckup::create([
                 'checkup_code' => $checkupCode,
                 $request->type . '_id' => $request->item_id,
-                'checkup_date' => now(), // Otomatis menggunakan waktu sekarang
-                'user_id' => Auth::user()->id ?? 1, // Otomatis menggunakan user yang login
+                'checkup_date' => now(),
+                'user_id' => Auth::user()->id ?? 1,
                 'shift' => $request->shift,
                 'overall_status' => $request->overall_status,
                 'notes' => $request->notes,
-                'created_by' => Auth::user()->id ?? 1, // fallback jika belum ada auth
+                'created_by' => Auth::user()->id ?? 1,
+                'completed_at' => now(),
             ]);
 
-            // Create checkup details
             foreach ($request->checkup_details as $detailData) {
                 $checkupDetail = $generalCheckup->details()->create([
                     'check_item_id' => $detailData['check_item_id'],
-                    'item_status' => 'good', // Default status
-                    'maintenance_notes' => '', // Default empty notes
+                    'item_status' => $detailData['item_status'],
+                    'maintenance_notes' => $detailData['maintenance_notes'] ?? '',
                 ]);
 
-                // Create checkup standards if exists
                 if (!empty($detailData['standards'])) {
                     foreach ($detailData['standards'] as $standardData) {
                         $checkupDetail->standards()->create([
                             'check_standard_id' => $standardData['check_standard_id'],
                             'result' => $standardData['result'],
-                            'notes' => null, // Notes dihapus sesuai request
+                            'notes' => $standardData['notes'] ?? null,
                         ]);
                     }
                 }
             }
 
-            // Handle photo uploads
             if ($request->hasFile('photos')) {
                 foreach ($request->file('photos') as $photo) {
                     $path = $photo->store('checkup-photos', 'public');
@@ -167,9 +208,6 @@ class GeneralCheckupController extends Controller
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show($id)
     {
         $checkup = GeneralCheckup::with([
@@ -185,9 +223,6 @@ class GeneralCheckupController extends Controller
         return view('general-checkup.show', compact('checkup'));
     }
 
-    /**
-     * Get detail data untuk modal
-     */
     public function getDetail($id)
     {
         $checkup = GeneralCheckup::with([
@@ -244,9 +279,6 @@ class GeneralCheckupController extends Controller
         ]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
         try {
@@ -254,14 +286,12 @@ class GeneralCheckupController extends Controller
 
             $checkup = GeneralCheckup::with('photos')->findOrFail($id);
 
-            // Delete physical photos
             foreach ($checkup->photos as $photo) {
                 if (Storage::disk('public')->exists($photo->photo_path)) {
                     Storage::disk('public')->delete($photo->photo_path);
                 }
             }
 
-            // Delete checkup (cascade akan handle details, standards, dan photos)
             $checkup->delete();
 
             DB::commit();
@@ -281,9 +311,6 @@ class GeneralCheckupController extends Controller
         }
     }
 
-    /**
-     * Get check items berdasarkan machine/part
-     */
     public function getCheckItems(Request $request)
     {
         $type = $request->get('type');

@@ -5,15 +5,15 @@
 
 @section('content')
     <div class="section-header">
-        <h1>Data General Checkup</h1>
-        <div class="ml-auto">
+        <h1>General Checkup</h1>
+        {{-- <div class="ml-auto">
             <a href="{{ route('general-checkup.create') }}" class="btn btn-primary mr-2">
                 <i class="fa fa-plus"></i> Tambah Checkup
             </a>
-        </div>
+        </div> --}}
     </div>
 
-    <!-- Filter Section -->
+    {{-- <!-- Filter Section -->
     <div class="row mb-3">
         <div class="col-lg-12">
             <div class="card">
@@ -67,7 +67,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </div> --}}
 
     <div class="row">
         <div class="col-lg-12">

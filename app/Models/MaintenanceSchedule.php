@@ -12,7 +12,6 @@ class MaintenanceSchedule extends Model
 
     protected $fillable = [
         'machine_id',
-        'part_id',
         'schedule_name',
         'period_days',
         'start_date',
@@ -32,14 +31,6 @@ class MaintenanceSchedule extends Model
     }
 
     /**
-     * Relasi ke Part
-     */
-    public function part()
-    {
-        return $this->belongsTo(Part::class);
-    }
-
-    /**
      * Relasi ke User (PIC)
      */
     public function user()
@@ -56,27 +47,19 @@ class MaintenanceSchedule extends Model
     }
 
     /**
-     * Get item name (machine or part name)
+     * Get item name (machine name)
      */
     public function getItemNameAttribute()
     {
-        return $this->machine ? $this->machine->machine_name : $this->part->part_name;
+        return $this->machine ? $this->machine->machine_name : '-';
     }
 
     /**
-     * Get item code (machine or part code)
+     * Get item code (machine code)
      */
     public function getItemCodeAttribute()
     {
-        return $this->machine ? $this->machine->machine_code : $this->part->part_code;
-    }
-
-    /**
-     * Get item type (machine or part)
-     */
-    public function getItemTypeAttribute()
-    {
-        return $this->machine ? 'machine' : 'part';
+        return $this->machine ? $this->machine->machine_code : '-';
     }
 
     /**
@@ -84,15 +67,9 @@ class MaintenanceSchedule extends Model
      */
     public function getLastCheckupAttribute()
     {
-        if ($this->machine_id) {
-            return GeneralCheckup::where('machine_id', $this->machine_id)
-                ->orderBy('checkup_date', 'desc')
-                ->first();
-        } else {
-            return GeneralCheckup::where('part_id', $this->part_id)
-                ->orderBy('checkup_date', 'desc')
-                ->first();
-        }
+        return GeneralCheckup::where('machine_id', $this->machine_id)
+            ->orderBy('checkup_date', 'desc')
+            ->first();
     }
 
     /**
@@ -105,8 +82,8 @@ class MaintenanceSchedule extends Model
         if ($lastCheckup) {
             return Carbon::parse($lastCheckup->checkup_date)->addDays($this->period_days);
         } else {
-            // Jika belum pernah check, next check = start_date + period
-            return Carbon::parse($this->start_date)->addDays($this->period_days);
+            // Jika belum pernah check, return null
+            return null;
         }
     }
 
@@ -115,6 +92,10 @@ class MaintenanceSchedule extends Model
      */
     public function getDaysRemainingAttribute()
     {
+        if (!$this->next_check_date) {
+            return null;
+        }
+        
         return now()->diffInDays($this->next_check_date, false);
     }
 
@@ -124,6 +105,10 @@ class MaintenanceSchedule extends Model
     public function getStatusAttribute()
     {
         $daysRemaining = $this->days_remaining;
+        
+        if ($daysRemaining === null) {
+            return 'no_checkup';
+        }
         
         if ($daysRemaining < 0) {
             return 'overdue';
@@ -142,6 +127,8 @@ class MaintenanceSchedule extends Model
     public function getStatusLabelAttribute()
     {
         switch ($this->status) {
+            case 'no_checkup':
+                return ['text' => 'No Checkup Yet', 'class' => 'badge-secondary'];
             case 'overdue':
                 return ['text' => 'Overdue', 'class' => 'badge-danger'];
             case 'due_today':
@@ -156,30 +143,31 @@ class MaintenanceSchedule extends Model
     }
 
     /**
-     * Scope untuk filter berdasarkan status
-     */
-    public function scopeOverdue($query)
-    {
-        // This needs to be implemented with raw SQL for performance
-        // For now, we'll filter in the collection
-        return $query;
-    }
-
-    /**
-     * Scope untuk filter berdasarkan tanggal
-     */
-    public function scopeDueDate($query, $date)
-    {
-        // This would need complex calculation, better to filter after collection
-        return $query;
-    }
-
-    /**
      * Scope untuk filter berdasarkan PIC
      */
     public function scopeByPic($query, $userId)
     {
         return $query->where('user_id', $userId);
+    }
+
+    /**
+     * Check if machine already has schedule
+     */
+    public static function machineHasSchedule($machineId)
+    {
+        return self::where('machine_id', $machineId)->exists();
+    }
+
+    /**
+     * Get available machines (machines without schedule)
+     */
+    public static function getAvailableMachines()
+    {
+        $scheduledMachineIds = self::pluck('machine_id')->toArray();
+        
+        return Machine::whereNotIn('id', $scheduledMachineIds)
+            ->select('id', 'machine_code', 'machine_name')
+            ->get();
     }
 
     /**
@@ -189,7 +177,6 @@ class MaintenanceSchedule extends Model
     {
         return self::with([
                 'machine:id,machine_code,machine_name', 
-                'part:id,part_code,part_name',
                 'user:id,name'
             ])
             ->get()
@@ -197,13 +184,12 @@ class MaintenanceSchedule extends Model
                 return [
                     'id' => $schedule->id,
                     'schedule_name' => $schedule->schedule_name,
-                    'item_type' => $schedule->item_type,
                     'item_code' => $schedule->item_code,
                     'item_name' => $schedule->item_name,
                     'period_days' => $schedule->period_days,
                     'start_date' => $schedule->start_date->format('d/m/Y'),
-                    'last_check' => $schedule->last_checkup ? $schedule->last_checkup->checkup_date->format('d/m/Y') : 'Belum pernah',
-                    'next_check' => $schedule->next_check_date->format('d/m/Y'),
+                    'last_check' => $schedule->last_checkup ? $schedule->last_checkup->checkup_date->format('d/m/Y') : '-',
+                    'next_check' => $schedule->next_check_date ? $schedule->next_check_date->format('d/m/Y') : '-',
                     'days_remaining' => $schedule->days_remaining,
                     'status' => $schedule->status,
                     'status_label' => $schedule->status_label,

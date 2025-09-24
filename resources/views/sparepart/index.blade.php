@@ -42,14 +42,14 @@
                     <!-- Tabel Data -->
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped" id="sparepart-table">
-                            <thead >
+                            <thead>
                                 <tr>
-                                    <th style="color: #212121;">No</th>
-                                    <th style="color: #212121;">Kode</th>
-                                    <th style="color: #212121;">Nama Barang</th>
-                                    <th style="color: #212121;">Stok</th>
-                                    <th style="color: #212121;">UOM</th>
-                                    <th style="color: #212121;">Harga</th>
+                                    <th style="color: #212121; background-color: white;">No</th>
+                                    <th style="color: #212121; background-color: white;">Kode</th>
+                                    <th style="color: #212121; background-color: white;">Nama Barang</th>
+                                    <th style="color: #212121; background-color: white;">Stok</th>
+                                    <th style="color: #212121; background-color: white;">UOM</th>
+                                    <th style="color: #212121; background-color: white;">Harga</th>
                                 </tr>
                             </thead>
                             <tbody id="barang-tbody">

@@ -8,10 +8,8 @@
         <h1>Maintenance Schedule</h1>
         <div class="ml-auto d-flex align-items-center">
             <div class="form-group mb-0 mr-3">
-                <select class="form-control" id="type_filter" name="type">
-                    <option value="all">Semua Type</option>
-                    <option value="machine">Machine</option>
-                    <option value="part">Part</option>
+                <select class="form-control" id="pic_filter" name="pic">
+                    <option value="all">Semua PIC</option>
                 </select>
             </div>
             <a href="javascript:void(0)" class="btn btn-primary" id="button_tambah_schedule">
@@ -29,8 +27,8 @@
                             <thead>
                                 <tr>
                                     <th>No</th>
-                                    <th>Item Code</th>
-                                    <th>Item Name</th>
+                                    <th>Machine Code</th>
+                                    <th>Machine Name</th>
                                     <th>Period (Days)</th>
                                     <th>Last Check</th>
                                     <th>Next Check</th>                                 
@@ -61,11 +59,12 @@
             
             loadScheduleData();
             loadUsers(); // Load users saat halaman dimuat
+            loadPicFilter(); // Load PIC filter
         });
 
         function loadScheduleData() {
             let params = {
-                type: $('#type_filter').val()
+                pic_id: $('#pic_filter').val()
             };
 
             $.ajax({
@@ -79,7 +78,6 @@
                     
                     $.each(response.data, function(key, value) {
                         let statusClass = getStatusClass(value.status);
-                        let typeClass = value.item_type === 'machine' ? 'badge-primary' : 'badge-success';
                         let daysRemainingDisplay = getDaysRemainingDisplay(value.days_remaining, value.status);
                         
                         let nextCheckClass = getNextCheckClass(value.status);
@@ -121,6 +119,7 @@
                 case 'due_today': return 'badge-warning';
                 case 'due_soon': return 'badge-info';
                 case 'on_schedule': return 'badge-success';
+                case 'no_checkup': return 'badge-secondary';
                 default: return 'badge-secondary';
             }
         }
@@ -131,6 +130,7 @@
                 case 'due_today': return 'badge-warning';
                 case 'due_soon': return 'badge-info';
                 case 'on_schedule': return 'badge-info';
+                case 'no_checkup': return 'badge-light';
                 default: return 'badge-light';
             }
         }
@@ -140,15 +140,33 @@
                 return `<span class="text-danger font-weight-bold">${Math.abs(days)} hari terlambat</span>`;
             } else if (status === 'due_today') {
                 return `<span class="text-warning font-weight-bold">Hari ini</span>`;
+            } else if (days === null) {
+                return `<span class="text-muted">Belum ada checkup</span>`;
             } else {
                 return `${days} hari`;
             }
         }
 
-        // Auto apply filter when type select changes
-        $('#type_filter').on('change', function() {
+        // Auto apply filter when PIC select changes
+        $('#pic_filter').on('change', function() {
             loadScheduleData();
         });
+
+        // Function untuk load PIC filter
+        function loadPicFilter() {
+            $.ajax({
+                url: "{{ route('maintenance-schedule.getUsers') }}",
+                type: "GET",
+                dataType: 'JSON',
+                success: function(response) {
+                    let picOptions = '<option value="all">Semua PIC</option>';
+                    $.each(response.data, function(key, user) {
+                        picOptions += `<option value="${user.id}">${user.name}</option>`;
+                    });
+                    $('#pic_filter').html(picOptions);
+                }
+            });
+        }
 
         // Function untuk load users
         function loadUsers(callback) {
@@ -172,27 +190,38 @@
             });
         }
 
-        // Function untuk load item options berdasarkan type
-        function loadItemOptions(type, targetElement, selectedId = null) {
-            if(type) {
-                $.ajax({
-                    url: '/maintenance-schedule/get-options',
-                    type: 'GET',
-                    data: {type: type},
-                    dataType: 'JSON',
-                    success: function(response) {
-                        let options = '<option value="">Pilih Item</option>';
-                        $.each(response.data, function(key, item) {
-                            let name = type === 'machine' ? item.machine_name : item.part_name;
-                            let selected = selectedId && item.id == selectedId ? 'selected' : '';
-                            options += `<option value="${item.id}" ${selected}>${name}</option>`;
-                        });
-                        $(targetElement).html(options);
-                    }
-                });
-            } else {
-                $(targetElement).html('<option value="">Pilih Item</option>');
-            }
+        // Function untuk load available machines
+        function loadAvailableMachines(targetElement, selectedId = null) {
+            $.ajax({
+                url: '/maintenance-schedule/get-available-machines',
+                type: 'GET',
+                dataType: 'JSON',
+                success: function(response) {
+                    let options = '<option value="">Pilih Mesin</option>';
+                    $.each(response.data, function(key, machine) {
+                        let selected = selectedId && machine.id == selectedId ? 'selected' : '';
+                        options += `<option value="${machine.id}" ${selected}>${machine.machine_name}</option>`;
+                    });
+                    $(targetElement).html(options);
+                },
+                error: function(xhr) {
+                    console.error('Error loading machines:', xhr);
+                    $(targetElement).html('<option value="">Gagal memuat data mesin</option>');
+                }
+            });
+        }
+
+        // Function untuk check machine availability
+        function checkMachineAvailability(machineId, excludeId = null) {
+            return $.ajax({
+                url: '/maintenance-schedule/check-machine',
+                type: 'GET',
+                data: {
+                    machine_id: machineId,
+                    exclude_id: excludeId
+                },
+                dataType: 'JSON'
+            });
         }
     </script>
 
@@ -200,8 +229,7 @@
     <script>
         $('body').on('click', '#button_tambah_schedule', function() {
             // Reset form
-            $('#type').val('');
-            $('#item_id').html('<option value="">Pilih Item</option>');
+            $('#machine_id').html('<option value="">Pilih Mesin</option>');
             $('#period_days').val('');
             $('#start_date').val('');
             $('#user_id').val('');
@@ -209,94 +237,107 @@
             // Reset error alerts
             $('.alert-danger').removeClass('d-block').addClass('d-none');
             
-            // Load users ketika modal dibuka
+            // Load users dan available machines ketika modal dibuka
             loadUsers();
+            loadAvailableMachines('#machine_id');
             
             $('#modal_tambah_schedule').modal('show');
-        });
-
-        // Handle type change untuk modal tambah
-        $('#type').on('change', function() {
-            let type = $(this).val();
-            loadItemOptions(type, '#item_id');
-        });
-
-        // Handle type change untuk modal edit
-        $('#edit_type').on('change', function() {
-            let type = $(this).val();
-            loadItemOptions(type, '#edit_item_id');
         });
 
         // Store Schedule
         $('#store_schedule').click(function(e) {
             e.preventDefault();
 
-            let type = $('#type').val();
-            let item_id = $('#item_id').val();
+            let machine_id = $('#machine_id').val();
             let period_days = $('#period_days').val();
             let start_date = $('#start_date').val();
             let user_id = $('#user_id').val();
             let token = $("meta[name='csrf-token']").attr("content");
 
-            let formData = new FormData();
-            formData.append('type', type);
-            formData.append('item_id', item_id);
-            formData.append('period_days', period_days);
-            formData.append('start_date', start_date);
-            formData.append('user_id', user_id);
-            formData.append('_token', token);
-
-            $.ajax({
-                url: '/maintenance-schedule',
-                type: "POST",
-                cache: false,
-                data: formData,
-                contentType: false,
-                processData: false,
-
-                success: function(response) {
-                    Swal.fire({
-                        type: 'success',
-                        icon: 'success',
-                        title: `${response.message}`,
-                        showConfirmButton: false,
-                        timer: 2000
-                    });
-
-                    loadScheduleData();
+            // Check if machine already has schedule
+            if (machine_id) {
+                checkMachineAvailability(machine_id).done(function(response) {
+                    if (response.has_schedule) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Perhatian!',
+                            text: 'Mesin ini sudah memiliki schedule!'
+                        });
+                        return;
+                    }
                     
-                    // Reset form
-                    $('#type').val('');
-                    $('#item_id').html('<option value="">Pilih Item</option>');
-                    $('#period_days').val('');
-                    $('#start_date').val('');
-                    $('#user_id').val('');
-                    $('#modal_tambah_schedule').modal('hide');
-                },
+                    // Proceed with saving if machine is available
+                    saveSchedule();
+                });
+            } else {
+                saveSchedule();
+            }
 
-                error: function(error) {
-                    if (error.responseJSON) {
-                        // Reset all alerts first
-                        $('.alert-danger').removeClass('d-block').addClass('d-none');
+            function saveSchedule() {
+                let formData = new FormData();
+                formData.append('machine_id', machine_id);
+                formData.append('period_days', period_days);
+                formData.append('start_date', start_date);
+                formData.append('user_id', user_id);
+                formData.append('_token', token);
+
+                $.ajax({
+                    url: '/maintenance-schedule',
+                    type: "POST",
+                    cache: false,
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+
+                    success: function(response) {
+                        Swal.fire({
+                            type: 'success',
+                            icon: 'success',
+                            title: `${response.message}`,
+                            showConfirmButton: false,
+                            timer: 2000
+                        });
+
+                        loadScheduleData();
                         
-                        if (error.responseJSON.type && error.responseJSON.type[0]) {
-                            $('#alert-type').removeClass('d-none').addClass('d-block').html(error.responseJSON.type[0]);
-                        }
-                        if (error.responseJSON.item_id && error.responseJSON.item_id[0]) {
-                            $('#alert-item_id').removeClass('d-none').addClass('d-block').html(error.responseJSON.item_id[0]);
-                        }
-                        if (error.responseJSON.period_days && error.responseJSON.period_days[0]) {
-                            $('#alert-period_days').removeClass('d-none').addClass('d-block').html(error.responseJSON.period_days[0]);
-                        }
-                        if (error.responseJSON.start_date && error.responseJSON.start_date[0]) {
-                            $('#alert-start_date').removeClass('d-none').addClass('d-block').html(error.responseJSON.start_date[0]);
-                        }
-                        if (error.responseJSON.user_id && error.responseJSON.user_id[0]) {
-                            $('#alert-user_id').removeClass('d-none').addClass('d-block').html(error.responseJSON.user_id[0]);
+                        // Reset form
+                        $('#machine_id').html('<option value="">Pilih Mesin</option>');
+                        $('#period_days').val('');
+                        $('#start_date').val('');
+                        $('#user_id').val('');
+                        $('#modal_tambah_schedule').modal('hide');
+                    },
+
+                    error: function(error) {
+                        if (error.responseJSON) {
+                            // Reset all alerts first
+                            $('.alert-danger').removeClass('d-block').addClass('d-none');
+                            
+                            if (error.responseJSON.machine_id && error.responseJSON.machine_id[0]) {
+                                $('#alert-machine_id').removeClass('d-none').addClass('d-block').html(error.responseJSON.machine_id[0]);
+                            }
+                            if (error.responseJSON.period_days && error.responseJSON.period_days[0]) {
+                                $('#alert-period_days').removeClass('d-none').addClass('d-block').html(error.responseJSON.period_days[0]);
+                            }
+                            if (error.responseJSON.start_date && error.responseJSON.start_date[0]) {
+                                $('#alert-start_date').removeClass('d-none').addClass('d-block').html(error.responseJSON.start_date[0]);
+                            }
+                            if (error.responseJSON.user_id && error.responseJSON.user_id[0]) {
+                                $('#alert-user_id').removeClass('d-none').addClass('d-block').html(error.responseJSON.user_id[0]);
+                            }
+                            
+                            // Handle duplicate machine error
+                            if (error.responseJSON.message && error.responseJSON.message.includes('sudah memiliki schedule')) {
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Perhatian!',
+                                    text: error.responseJSON.message
+                                });
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         });
     </script>
 
@@ -318,9 +359,32 @@
                     $('#edit_period_days').val(response.period_days);
                     $('#edit_start_date').val(response.start_date);
                     
-                    // Set type dan load items
-                    $('#edit_type').val(response.type);
-                    loadItemOptions(response.type, '#edit_item_id', response.item_id);
+                    // Load all machines and set selected machine
+                    $.ajax({
+                        url: '/maintenance-schedule/get-available-machines',
+                        type: 'GET',
+                        dataType: 'JSON',
+                        success: function(machineResponse) {
+                            let options = '<option value="">Pilih Mesin</option>';
+                            $.each(machineResponse.data, function(key, machine) {
+                                let selected = machine.id == response.machine_id ? 'selected' : '';
+                                options += `<option value="${machine.id}" ${selected}>${machine.machine_name}</option>`;
+                            });
+                            
+                            // Add current machine if not in available list
+                            let currentMachineInList = machineResponse.data.some(m => m.id == response.machine_id);
+                            if (!currentMachineInList) {
+                                // Get current machine info from the schedule data
+                                let currentScheduleRow = $(`#index_${schedule_id}`);
+                                if (currentScheduleRow.length) {
+                                    let machineName = currentScheduleRow.find('td').eq(2).text(); // machine name column
+                                    options += `<option value="${response.machine_id}" selected>${machineName}</option>`;
+                                }
+                            }
+                            
+                            $('#edit_machine_id').html(options);
+                        }
+                    });
                     
                     // Load users dan set selected user
                     loadUsers(function() {
@@ -340,16 +404,14 @@
             e.preventDefault();
 
             let schedule_id = $('#edit_schedule_id').val();
-            let type = $('#edit_type').val();
-            let item_id = $('#edit_item_id').val();
+            let machine_id = $('#edit_machine_id').val();
             let period_days = $('#edit_period_days').val();
             let start_date = $('#edit_start_date').val();
             let user_id = $('#edit_user_id').val();
             let token = $("meta[name='csrf-token']").attr('content');
 
             let formData = new FormData();
-            formData.append('type', type);
-            formData.append('item_id', item_id);
+            formData.append('machine_id', machine_id);
             formData.append('period_days', period_days);
             formData.append('start_date', start_date);
             formData.append('user_id', user_id);
@@ -382,11 +444,8 @@
                         // Reset all alerts first
                         $('.alert-danger').removeClass('d-block').addClass('d-none');
                         
-                        if (error.responseJSON.type && error.responseJSON.type[0]) {
-                            $('#alert-edit-type').removeClass('d-none').addClass('d-block').html(error.responseJSON.type[0]);
-                        }
-                        if (error.responseJSON.item_id && error.responseJSON.item_id[0]) {
-                            $('#alert-edit-item_id').removeClass('d-none').addClass('d-block').html(error.responseJSON.item_id[0]);
+                        if (error.responseJSON.machine_id && error.responseJSON.machine_id[0]) {
+                            $('#alert-edit-machine_id').removeClass('d-none').addClass('d-block').html(error.responseJSON.machine_id[0]);
                         }
                         if (error.responseJSON.period_days && error.responseJSON.period_days[0]) {
                             $('#alert-edit-period_days').removeClass('d-none').addClass('d-block').html(error.responseJSON.period_days[0]);
@@ -396,6 +455,15 @@
                         }
                         if (error.responseJSON.user_id && error.responseJSON.user_id[0]) {
                             $('#alert-edit-user_id').removeClass('d-none').addClass('d-block').html(error.responseJSON.user_id[0]);
+                        }
+                        
+                        // Handle duplicate machine error
+                        if (error.responseJSON.message && error.responseJSON.message.includes('sudah memiliki schedule')) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Perhatian!',
+                                text: error.responseJSON.message
+                            });
                         }
                     }
                 }

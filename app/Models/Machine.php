@@ -4,23 +4,36 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Machine extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'machine_code',
-        'machine_name',
-        'section',
+        'category_id',
         'status',
-    ];
-
-    protected $casts = [
-        'installation_date' => 'date',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'kode',
+        'description',
+        'kapasitas',
+        'model',
+        'tahun_pembuatan',
+        'nomor_seri',
+        'power',
+        'tgl_instal',
+        'keterangan',
+        'capacity_kn',
+        'slide_stroke',
+        'stroke_per_minute',
+        'die_height',
+        'slide_adjustment',
+        'slide_area',
+        'bolster_area',
+        'main_motor',
+        'req_air_pressure',
+        'max_upper_die_weight',
+        'power_source',
+        'braking_time',
+        'lane',
     ];
 
     // Relationships
@@ -40,7 +53,13 @@ class Machine extends Model
         return $this->hasMany(CheckItem::class);
     }
 
-    
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'machine_user');
+    }
 
-
+    public function category()
+    {
+        return $this->belongsTo(MachineCategory::class, 'category_id');
+    }
 }

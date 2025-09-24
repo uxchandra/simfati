@@ -14,42 +14,36 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>Type</label>
-                                <select class="form-control" id="type" name="type" required>
-                                    <option value="">Pilih Type</option>
-                                    <option value="machine">Machine</option>
-                                    <option value="part">Part</option>
+                                <label>Mesin <span class="text-danger">*</span></label>
+                                <select class="form-control" id="machine_id" name="machine_id" required>
+                                    <option value="">Pilih Mesin</option>
                                 </select>
-                                <div class="alert alert-danger mt-2 d-none" role="alert" id="alert-type"></div>
+                                <small class="form-text text-muted">Hanya mesin yang belum memiliki schedule</small>
+                                <div class="alert alert-danger mt-2 d-none" role="alert" id="alert-machine_id"></div>
                             </div>
 
                             <div class="form-group">
-                                <label>Item</label>
-                                <select class="form-control" id="item_id" name="item_id" required>
-                                    <option value="">Pilih Item</option>
-                                </select>
-                                <div class="alert alert-danger mt-2 d-none" role="alert" id="alert-item_id"></div>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Period (Days)</label>
+                                <label>Period (Hari) <span class="text-danger">*</span></label>
                                 <input type="number" class="form-control" id="period_days" name="period_days" 
                                        placeholder="Masukkan periode dalam hari" min="1" required>
+                                <small class="form-text text-muted">Interval maintenance dalam hari</small>
                                 <div class="alert alert-danger mt-2 d-none" role="alert" id="alert-period_days"></div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>Start Date</label>
+                                <label>Start Date <span class="text-danger">*</span></label>
                                 <input type="date" class="form-control" id="start_date" name="start_date" required>
+                                <small class="form-text text-muted">Tanggal mulai schedule</small>
                                 <div class="alert alert-danger mt-2 d-none" role="alert" id="alert-start_date"></div>
                             </div>
 
                             <div class="form-group">
-                                <label>PIC</label>
+                                <label>PIC <span class="text-danger">*</span></label>
                                 <select class="form-control" id="user_id" name="user_id" required>
                                     <option value="">Pilih PIC</option>
                                 </select>
+                                <small class="form-text text-muted">Person in Charge untuk maintenance</small>
                                 <div class="alert alert-danger mt-2 d-none" role="alert" id="alert-user_id"></div>
                             </div>
                         </div>
@@ -57,8 +51,12 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-dark" data-dismiss="modal">Tutup</button>
-                <button type="button" class="btn btn-primary" id="store_schedule">Simpan</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Tutup
+                </button>
+                <button type="button" class="btn btn-primary" id="store_schedule">
+                    <i class="fas fa-save"></i> Simpan Schedule
+                </button>
             </div>
         </div>
     </div>

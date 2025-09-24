@@ -32,6 +32,12 @@
                     </div>
 
                     <div class="form-group">
+                        <label>Lane</label>
+                        <input type="text" class="form-control" id="edit_lane" placeholder="Masukkan Lane (optional)">
+                        <div class="alert alert-danger mt-2 d-none" role="alert" id="alert-edit-lane"></div>
+                    </div>
+
+                    <div class="form-group">
                         <label>Status</label>
                         <select class="form-control" id="edit_status">
                             <option value="">Select Status</option>

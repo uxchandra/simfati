@@ -98,6 +98,7 @@
           </div>
       
           <ul class="sidebar-menu">
+            @if (Auth::user()->role->role === 'superadmin')
                <li class="sidebar-item mt-4">
                    <a class="nav-link  {{ Request::is('dashboard') || Request::is('dashboard') ? 'active' : '' }}" href="/dashboard">
                        <i class="fas fa-fire "></i> <span class="align-middle">Dashboard</span>
@@ -107,13 +108,33 @@
                <li class="dropdown" id="dropdown-data-master">
                  <a href="#" class="nav-link has-dropdown"><i class="fas fa-database"></i> <span>Data Master</span></a>
                  <ul class="dropdown-menu">
-                   <li><a class="nav-link {{ Request::is('machine') ? 'active' : '' }}" href="/machine"><i class="fas fa-cog"></i> <span>Machine</span></a></li>
+                   <li><a class="nav-link {{ Request::is('machine_category') ? 'active' : '' }}" href="/machine_category"><i class="fas fa-cog"></i> <span>Categories</span></a></li>
+                   <li><a class="nav-link {{ Request::is('machine-users') ? 'active' : '' }}" href="/machine-users"><i class="fas fa-project-diagram"></i> <span>PIC Machines</span></a></li> 
                    <li><a class="nav-link {{ Request::is('sparepart') ? 'active' : '' }}" href="/sparepart"><i class="fas fa-wrench"></i> <span>Sparepart</span></a></li>
                    <li><a class="nav-link {{ Request::is('department') ? 'active' : '' }}" href="/department"><i class="fas fa-thin fa-building"></i><span>Department</span></a></li>
                    <li><a class="nav-link {{ Request::is('checkitem') ? 'active' : '' }}" href="/checkitem"><i class="fas fa-tasks"></i> <span>Indikator</span></a></li>
                    <li><a class="nav-link {{ Request::is('maintenance-schedule') ? 'active' : '' }}" href="/maintenance-schedule"><i class="fas fa-calendar-alt"></i> <span>Schedule</span></a></li>                
                  </ul>
                </li>
+
+               <li class="dropdown" id="dropdown-data-inventaris">
+                  <a href="#" class="nav-link has-dropdown">
+                      <i class="fas fa-boxes"></i> 
+                      <span>Data Inventaris</span>
+                  </a>
+                  <ul class="dropdown-menu">
+                      @foreach ($categories as $category)
+                          <li>
+                              <a 
+                                class="nav-link {{ Request::is('categories/'.$category->id) ? 'active' : '' }}" 
+                                href="{{ url('categories/'.$category->id) }}">
+                                  <i class="fas fa-box"></i> 
+                                  <span>{{ $category->name }}</span>
+                              </a>
+                          </li>
+                      @endforeach
+                  </ul>
+              </li>
 
                <li class="dropdown" id="dropdown-transaksi-in">
                  <a href="#" class="nav-link has-dropdown"><i class="fas fa-clipboard-list"></i> <span>Transaksi</span></a>
@@ -123,11 +144,10 @@
                  </ul>
                </li>
 
-               <li class="dropdown" id="dropdown-manajemen-user">
+               <li class="dropdown" id="dropdown-history">
                  <a href="#" class="nav-link has-dropdown"><i class="fas fa-history"></i> <span>History</span></a>
                  <ul class="dropdown-menu">
-                   <li><a class="nav-link {{ Request::is('general-checkup') ? 'active' : '' }}" href="/general-checkup"><i class="fas fa-clipboard-check"></i> <span>General Checkup</span></a></li>
-                   <li><a class="nav-link {{ Request::is('repair-request') ? 'active' : '' }}" href="/repair-request"><i class="fas fa-file-signature"></i> <span>Repair Request</span></a></li> 
+                   <li><a class="nav-link {{ Request::is('history') ? 'active' : '' }}" href="/history"><i class="fas fa-clipboard-check"></i> <span>General Checkup</span></a></li>
                  </ul>
                </li>
 
@@ -138,6 +158,28 @@
                    <li><a class="nav-link {{ Request::is('roles') ? 'active' : '' }}" href="/roles"><i class="fas fa-user-lock"></i> <span>Roles</span></a></li>
                  </ul>
                </li>
+              @elseif (Auth::user()->role->role === 'ast. leader')
+                <li class="sidebar-item mt-4">
+                   <a class="nav-link  {{ Request::is('dashboard') || Request::is('dashboard') ? 'active' : '' }}" href="/dashboard">
+                       <i class="fas fa-fire "></i> <span class="align-middle">Dashboard</span>
+                   </a>
+                </li>
+
+                <li><a class="nav-link {{ Request::is('machine') ? 'active' : '' }}" href="/machine"><i class="fas fa-cog"></i> <span>Machine</span></a></li> 
+                <li><a class="nav-link {{ Request::is('repair-request') ? 'active' : '' }}" href="/repair-request"><i class="fas fa-file-signature"></i> <span>Repair Request</span></a></li>   
+
+              @elseif (Auth::user()->role->role === 'mekanik')
+                <li class="sidebar-item mt-4">
+                   <a class="nav-link  {{ Request::is('dashboard') || Request::is('dashboard') ? 'active' : '' }}" href="/dashboard">
+                       <i class="fas fa-fire "></i> <span class="align-middle">Dashboard</span>
+                   </a>
+                </li>
+
+                <li><a class="nav-link {{ Request::is('sparepart') ? 'active' : '' }}" href="/sparepart"><i class="fas fa-wrench"></i> <span>Sparepart</span></a></li>
+                <li><a class="nav-link {{ Request::is('maintenance-schedule') ? 'active' : '' }}" href="/maintenance-schedule"><i class="fas fa-calendar-alt"></i> <span>Schedule</span></a></li>
+                <li><a class="nav-link {{ Request::is('general-checkup') ? 'active' : '' }}" href="/general-checkup"><i class="fas fa-clipboard-check"></i> <span>General Checkup</span></a></li>
+                <li><a class="nav-link {{ Request::is('repair-request') ? 'active' : '' }}" href="/repair-request"><i class="fas fa-file-signature"></i> <span>Repair Request</span></a></li>
+              @endif          
           </ul>
       
         </aside>

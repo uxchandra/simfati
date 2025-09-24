@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\MaintenanceSchedule;
 use App\Models\Machine;
-use App\Models\Part;
 use App\Models\User;
 
 class MaintenanceScheduleController extends Controller
@@ -25,13 +24,6 @@ class MaintenanceScheduleController extends Controller
     {
         $schedules = MaintenanceSchedule::getScheduleData();
 
-        // Filter berdasarkan type jika ada
-        if ($request->has('type') && $request->type != 'all') {
-            $schedules = $schedules->filter(function($schedule) use ($request) {
-                return $schedule['item_type'] == $request->type;
-            });
-        }
-
         // Filter berdasarkan PIC jika ada
         if ($request->has('pic_id') && $request->pic_id != 'all') {
             $schedules = $schedules->filter(function($schedule) use ($request) {
@@ -40,8 +32,18 @@ class MaintenanceScheduleController extends Controller
         }
 
         // Sort berdasarkan days_remaining (overdue dulu, lalu yang paling dekat due date)
-        $schedules = $schedules->sortBy(function($schedule) {
-            return $schedule['days_remaining'];
+        // Jika days_remaining null, taruh di akhir
+        $schedules = $schedules->sort(function($a, $b) {
+            if ($a['days_remaining'] === null && $b['days_remaining'] === null) {
+                return 0;
+            }
+            if ($a['days_remaining'] === null) {
+                return 1; // a di akhir
+            }
+            if ($b['days_remaining'] === null) {
+                return -1; // b di akhir
+            }
+            return $a['days_remaining'] - $b['days_remaining'];
         });
 
         return response()->json([
@@ -54,11 +56,10 @@ class MaintenanceScheduleController extends Controller
      */
     public function create()
     {
-        $machines = Machine::select('id', 'machine_code', 'machine_name')->get();
-        $parts = Part::select('id', 'part_code', 'part_name')->get();
+        $machines = MaintenanceSchedule::getAvailableMachines();
         $users = User::select('id', 'name')->orderBy('name')->get();
         
-        return view('maintenance-schedule.create', compact('machines', 'parts', 'users'));
+        return view('maintenance-schedule.create', compact('machines', 'users'));
     }
 
     /**
@@ -67,28 +68,31 @@ class MaintenanceScheduleController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'type' => 'required|in:machine,part',
-            'item_id' => 'required|integer',
+            'machine_id' => 'required|exists:machines,id',
             'user_id' => 'required|exists:users,id',
             'period_days' => 'required|integer|min:1',
             'start_date' => 'required|date',
         ]);
 
         try {
-            // Generate schedule name otomatis berdasarkan item dan periode
-            $item = null;
-            if ($request->type === 'machine') {
-                $item = Machine::find($request->item_id);
-                $itemName = $item->machine_name;
-            } else {
-                $item = Part::find($request->item_id);
-                $itemName = $item->part_name;
+            // Check if machine already has schedule
+            if (MaintenanceSchedule::machineHasSchedule($request->machine_id)) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Mesin ini sudah memiliki schedule!',
+                        'success' => false
+                    ], 400);
+                }
+                
+                return redirect()->back()->with('error', 'Mesin ini sudah memiliki schedule!')->withInput();
             }
-            
-            $scheduleName = "Schedule {$itemName} ({$request->period_days} hari)";
+
+            // Get machine data
+            $machine = Machine::find($request->machine_id);
+            $scheduleName = "Schedule {$machine->machine_name} ({$request->period_days} hari)";
 
             $schedule = MaintenanceSchedule::create([
-                $request->type . '_id' => $request->item_id,
+                'machine_id' => $request->machine_id,
                 'schedule_name' => $scheduleName,
                 'period_days' => $request->period_days,
                 'start_date' => $request->start_date,
@@ -123,7 +127,7 @@ class MaintenanceScheduleController extends Controller
      */
     public function show($id)
     {
-        $schedule = MaintenanceSchedule::with(['machine', 'part', 'user'])->findOrFail($id);
+        $schedule = MaintenanceSchedule::with(['machine', 'user'])->findOrFail($id);
         return view('maintenance-schedule.show', compact('schedule'));
     }
 
@@ -132,27 +136,25 @@ class MaintenanceScheduleController extends Controller
      */
     public function edit($id)
     {
-        $schedule = MaintenanceSchedule::with(['machine', 'part', 'user'])->findOrFail($id);
+        $schedule = MaintenanceSchedule::with(['machine', 'user'])->findOrFail($id);
         
         // Check if request is AJAX
         if (request()->expectsJson()) {
-            $type = $schedule->machine_id ? 'machine' : 'part';
-            $item_id = $schedule->machine_id ?? $schedule->part_id;
-            
             return response()->json([
-                'type' => $type,
-                'item_id' => $item_id,
+                'machine_id' => $schedule->machine_id,
                 'period_days' => $schedule->period_days,
                 'start_date' => $schedule->start_date,
                 'user_id' => $schedule->user_id
             ]);
         }
 
-        $machines = Machine::select('id', 'machine_code', 'machine_name')->get();
-        $parts = Part::select('id', 'part_code', 'part_name')->get();
+        // Get available machines plus current machine
+        $machines = MaintenanceSchedule::getAvailableMachines();
+        $machines->push($schedule->machine); // Add current machine to list
+        
         $users = User::select('id', 'name')->orderBy('name')->get();
         
-        return view('maintenance-schedule.edit', compact('schedule', 'machines', 'parts', 'users'));
+        return view('maintenance-schedule.edit', compact('schedule', 'machines', 'users'));
     }
 
     /**
@@ -161,8 +163,7 @@ class MaintenanceScheduleController extends Controller
     public function update(Request $request, $id)
     {
         $request->validate([
-            'type' => 'required|in:machine,part',
-            'item_id' => 'required|integer',
+            'machine_id' => 'required|exists:machines,id',
             'user_id' => 'required|exists:users,id',
             'period_days' => 'required|integer|min:1',
             'start_date' => 'required|date',
@@ -171,21 +172,26 @@ class MaintenanceScheduleController extends Controller
         try {
             $schedule = MaintenanceSchedule::findOrFail($id);
             
-            // Generate schedule name otomatis berdasarkan item dan periode
-            $item = null;
-            if ($request->type === 'machine') {
-                $item = Machine::find($request->item_id);
-                $itemName = $item->machine_name;
-            } else {
-                $item = Part::find($request->item_id);
-                $itemName = $item->part_name;
+            // Check if machine already has schedule (exclude current schedule)
+            if ($request->machine_id != $schedule->machine_id && 
+                MaintenanceSchedule::machineHasSchedule($request->machine_id)) {
+                
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Mesin ini sudah memiliki schedule!',
+                        'success' => false
+                    ], 400);
+                }
+                
+                return redirect()->back()->with('error', 'Mesin ini sudah memiliki schedule!')->withInput();
             }
             
-            $scheduleName = "Schedule {$itemName} ({$request->period_days} hari)";
+            // Generate schedule name otomatis berdasarkan mesin dan periode
+            $machine = Machine::find($request->machine_id);
+            $scheduleName = "Schedule {$machine->machine_name} ({$request->period_days} hari)";
             
             $schedule->update([
-                'machine_id' => $request->type == 'machine' ? $request->item_id : null,
-                'part_id' => $request->type == 'part' ? $request->item_id : null,
+                'machine_id' => $request->machine_id,
                 'schedule_name' => $scheduleName,
                 'period_days' => $request->period_days,
                 'start_date' => $request->start_date,
@@ -247,22 +253,14 @@ class MaintenanceScheduleController extends Controller
     }
 
     /**
-     * Get options untuk dropdown berdasarkan type
+     * Get available machines untuk dropdown
      */
-    public function getOptions(Request $request)
+    public function getAvailableMachines()
     {
-        $type = $request->get('type');
+        $machines = MaintenanceSchedule::getAvailableMachines();
         
-        if ($type === 'machine') {
-            $options = Machine::select('id', 'machine_code', 'machine_name')->get();
-        } elseif ($type === 'part') {
-            $options = Part::select('id', 'part_code', 'part_name')->get();
-        } else {
-            $options = collect();
-        }
-
         return response()->json([
-            'data' => $options
+            'data' => $machines
         ]);
     }
 
@@ -275,6 +273,27 @@ class MaintenanceScheduleController extends Controller
         
         return response()->json([
             'data' => $users
+        ]);
+    }
+
+    /**
+     * Check if machine has schedule (for AJAX validation)
+     */
+    public function checkMachine(Request $request)
+    {
+        $machineId = $request->get('machine_id');
+        $excludeId = $request->get('exclude_id'); // for edit case
+        
+        $query = MaintenanceSchedule::where('machine_id', $machineId);
+        
+        if ($excludeId) {
+            $query->where('id', '!=', $excludeId);
+        }
+        
+        $hasSchedule = $query->exists();
+        
+        return response()->json([
+            'has_schedule' => $hasSchedule
         ]);
     }
 }

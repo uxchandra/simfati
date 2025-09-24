@@ -3,7 +3,6 @@
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MachineController;
-use App\Http\Controllers\PartController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\CheckItemController;
@@ -12,6 +11,8 @@ use App\Http\Controllers\MaintenanceScheduleController;
 use App\Http\Controllers\RepairRequestController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\SparepartController;
+use App\Http\Controllers\MachineUserController;
+use App\Http\Controllers\MachineCategoryController;
 
 Route::get('/', function () {
     return view('auth.login');
@@ -30,11 +31,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/roles/get-data', [RolesController::class, 'getDataRole']);
     Route::resource('/roles', RolesController::class);
 
-    Route::get('/part/get-data', [PartController::class, 'getData'])->name('part.getData');
-    Route::resource('part', PartController::class);
-
-    Route::get('/machine/get-data', [MachineController::class, 'getData'])->name('machine.getData');
-    Route::resource('machine', MachineController::class);
+    Route::get('/machine_category/get-data', [MachineCategoryController::class, 'getData'])->name('machine_category.getData');
+    Route::resource('machine_category', MachineCategoryController::class);
 
     Route::get('/department/get-data', [DepartmentController::class, 'getDataDepartment']);
     Route::get('/get-departments', [DepartmentController::class, 'getDepartments']);
@@ -68,10 +66,22 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('repair-request', RepairRequestController::class);
 
+    // Route untuk History
+    Route::get('/history', [App\Http\Controllers\HistoryController::class, 'index'])->name('history.index');
+    Route::get('/history/get-data', [App\Http\Controllers\HistoryController::class, 'getData'])->name('history.getData');
+    Route::get('/history/detail/{id}', [App\Http\Controllers\HistoryController::class, 'getDetail'])->name('history.getDetail');
+
     Route::get('/sparepart', [SparepartController::class, 'index'])->name('sparepart.index');
     Route::get('/sparepart/data', [SparepartController::class, 'getData'])->name('sparepart.data');
     Route::get('/sparepart/search', [SparepartController::class, 'search'])->name('sparepart.search');
     Route::post('/sparepart/clear-cache', [SparepartController::class, 'clearCache'])->name('sparepart.clear-cache');
+
+    Route::resource('machine-users', MachineUserController::class);
+
+    // Inventory by category
+    Route::get('/categories/{id}', [MachineController::class, 'byCategory'])->name('categories.show');
+    Route::get('/categories/{id}/machines', [MachineController::class, 'getByCategory'])->name('categories.machines');
+    Route::get('/categories/{id}/machines/create', [MachineController::class, 'createInCategory'])->name('categories.machines.create');
 });
 
 require __DIR__.'/auth.php';
